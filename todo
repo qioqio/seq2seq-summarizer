@@ -1,0 +1,4 @@
+1.【Done】修改checkpoint存储路径，使得可以保存各个实验
+2.【Done】在各个实验目录下存储params配置文件，方便查看参数配置
+3.【Done】attention需要根据时间步进行缩减
+4.多种attention函数
