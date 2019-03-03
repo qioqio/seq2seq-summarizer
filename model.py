@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import random
+
+from modules.attention import Attention
 from params import Params
 from utils import Vocab, Hypothesis, word_detector
 from typing import Union, List
@@ -58,7 +60,7 @@ class DecoderRNN(nn.Module):
         super(DecoderRNN, self).__init__()
         self.params = params
         self.vocab_size = vocab_size
-        self.hidden_size = hidden_size  # encoder hidden的两倍
+        self.hidden_size = hidden_size  # decoder hidden size 如果没有指定，就是encoder hidden的两倍
         self.combined_size = self.hidden_size
 
         self.attn_func_name = attn_func_name
@@ -82,31 +84,24 @@ class DecoderRNN(nn.Module):
             if not enc_hidden_size:
                 enc_hidden_size = self.hidden_size
 
-            if attn_func_name.lower() == "tanh":
-                self.enc_attn_func =
-            elif attn_func_name.lower() == "bilinear":
-                self.enc_attn_func = nn.Bilinear(self.hidden_size, enc_hidden_size, 1)
-                # self.enc_bilinear = nn.Bilinear(self.hidden_size, enc_hidden_size, 1)
-            else:
-                print("Attention function should be tanh or bilinear!")
-                exit(0)
+            # if attn_func_name.lower() == "tanh":
+            #     self.enc_attn_func =
+            # elif attn_func_name.lower() == "bilinear":
+            #     self.enc_attn_func = nn.Bilinear(self.hidden_size, enc_hidden_size, 1)
+            #     # self.enc_bilinear = nn.Bilinear(self.hidden_size, enc_hidden_size, 1)
+            # else:
+            #     print("Attention function should be tanh or bilinear!")
+            #     exit(0)
 
+            self.attn = Attention(method=params.attn_func_name, batch_size=params.batch_size,
+                                  decoder_hidden_size=hidden_size, encoder_hidden_size=enc_hidden_size)
 
             self.combined_size += enc_hidden_size  # decoder hidden + encoder hidden
             if enc_attn_cover:
                 self.cover_weight = nn.Parameter(torch.rand(1))
 
         if dec_attn:
-
-            if attn_func_name.lower() == "tanh":
-                self.enc_attn_func =
-            elif attn_func_name.lower() == "bilinear":
-                self.dec_attn_func = nn.Bilinear(self.hidden_size, enc_hidden_size, 1)
-                # self.dec_bilinear = nn.Bilinear(self.hidden_size, self.hidden_size, 1)
-            else:
-                print("Attention function should be tanh or bilinear!")
-                exit(0)
-
+            self.dec_bilinear = nn.Bilinear(self.hidden_size, self.hidden_size, 1)
             self.combined_size += self.hidden_size  # decoder hidden + decoder hidden
 
         self.out_drop = nn.Dropout(out_drop) if out_drop > 0 else None
@@ -173,7 +168,6 @@ class DecoderRNN(nn.Module):
         offset = self.hidden_size
         enc_attn, prob_ptr = None, None  # for visualization
 
-
         # enc_attn: 得到context vector，可以只用context vector来计算gen概率，不是用copy，因此不是一个参数
         # pointer: 使用copy机制，使用copy就必须用到context vector
         if self.enc_attn or self.pointer:
@@ -185,24 +179,25 @@ class DecoderRNN(nn.Module):
                 print("num_enc_steps:{}".format(num_enc_steps))
                 print("enc_total_size:{}".format(enc_total_size))
 
-            # 拿当前时刻的hidden开始计算attn weight
-            # 扩展hidden
-            # enc_energy: (src_len, batch, 1)
-            enc_energy = self.enc_attn_func(hidden.expand(num_enc_steps, batch_size, -1).contiguous(),
-                                            encoder_states)
-            if self.params.debug:
-                print("enc_energy:{}".format(enc_energy))
-                print("enc_energy size:{}".format(enc_energy.size()))
+            enc_attn = self.attn.forward(hidden, encoder_states)
 
-            # use coverage
-            # 对应论文，这里的Attention需要考虑之前计算的attn
-            if self.enc_attn_cover and self.enc_attn_temporal and coverage_vector is not None:
-                if self.params.debug:
-                    print("cover_weight:{}".format(self.cover_weight))
-                enc_energy += self.cover_weight * torch.log(coverage_vector.transpose(0, 1).unsqueeze(2) + eps)
-            # transpose => (batch size, num encoder states, 1)
-            enc_attn = F.softmax(enc_energy, dim=0).transpose(0, 1)
-
+            # # 拿当前时刻的hidden开始计算attn weight
+            # # 扩展hidden
+            # # enc_energy: (src_len, batch, 1)
+            # enc_energy = self.enc_attn_func(hidden.expand(num_enc_steps, batch_size, -1).contiguous(),
+            #                                 encoder_states)
+            # if self.params.debug:
+            #     print("enc_energy:{}".format(enc_energy))
+            #     print("enc_energy size:{}".format(enc_energy.size()))
+            #
+            # # # use coverage
+            # # # 对应论文，这里的Attention需要考虑之前计算的attn
+            # # if self.enc_attn_cover and self.enc_attn_temporal and coverage_vector is not None:
+            # #     if self.params.debug:
+            # #         print("cover_weight:{}".format(self.cover_weight))
+            # #     enc_energy += self.cover_weight * torch.log(coverage_vector.transpose(0, 1).unsqueeze(2) + eps)
+            # # transpose => (batch size, num encoder states, 1)
+            # enc_attn = F.softmax(enc_energy, dim=0).transpose(0, 1)
 
             if self.params.debug:
                 print("enc_attn:{}".format(enc_attn))
@@ -218,14 +213,10 @@ class DecoderRNN(nn.Module):
                 offset += enc_total_size
             enc_attn = enc_attn.squeeze(2)
 
-
-
-
-
         if self.dec_attn:
             if decoder_states is not None and len(decoder_states) > 0:
-                dec_energy = self.dec_attn_func(hidden.expand_as(decoder_states).contiguous(),
-                                                decoder_states)
+                dec_energy = self.dec_bilinear(hidden.expand_as(decoder_states).contiguous(),
+                                               decoder_states)
                 dec_attn = F.softmax(dec_energy, dim=0).transpose(0, 1)
                 dec_context = torch.bmm(decoder_states.permute(1, 2, 0), dec_attn)
                 combined[:, offset:offset + self.hidden_size] = dec_context.squeeze(2)

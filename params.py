@@ -73,7 +73,7 @@ class Params:
     truncate_tgt: bool = True  # truncate to max_tgt_len? if false, drop example if too long
 
     # Saving model automatically during training
-    model_path_prefix: Optional[str] = 'checkpoints/pointer/cnndm'  # 二级目录为实验目录，方便管理实验
+    model_path_prefix: Optional[str] = 'checkpoints/pointer-2/cnndm'  # 二级目录为实验目录，方便管理实验
     keep_every_epoch: bool = False  # save all epochs, or only the best and the latest one?
 
     # Testing
