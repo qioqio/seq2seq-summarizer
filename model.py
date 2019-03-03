@@ -6,7 +6,7 @@ import random
 
 from modules.attention import Attention
 from params import Params
-from utils import Vocab, Hypothesis, word_detector
+from utils import Vocab, Hypothesis, word_detector, create_mask
 from typing import Union, List
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -32,6 +32,7 @@ class EncoderRNN(nn.Module):
 
         Perform multi-step encoding.
         """
+
         if input_lengths is not None:
             embedded = pack_padded_sequence(embedded, input_lengths)
 
@@ -45,6 +46,11 @@ class EncoderRNN(nn.Module):
             batch_size = hidden.size(1)
             hidden = hidden.transpose(0, 1).contiguous().view(1, batch_size,
                                                               self.hidden_size * self.num_directions)
+
+        # print("=====")
+        # print(input_lengths)
+        # print(_)
+
         return output, hidden
 
     def init_hidden(self, batch_size):
@@ -125,7 +131,7 @@ class DecoderRNN(nn.Module):
             self.out.weight = tied_embedding.weight
 
     def forward(self, embedded, hidden, encoder_states=None, decoder_states=None, coverage_vector=None, *,
-                encoder_word_idx=None, ext_vocab_size: int = None, log_prob: bool = True):
+                encoder_word_idx=None, ext_vocab_size: int = None, log_prob: bool = True, mask=None):
         """
         :param embedded: (batch size, embed size) 一个一个词语输入
         :param hidden: (1, batch size, decoder hidden size) encoder的输出
@@ -179,7 +185,7 @@ class DecoderRNN(nn.Module):
                 print("num_enc_steps:{}".format(num_enc_steps))
                 print("enc_total_size:{}".format(enc_total_size))
 
-            enc_attn = self.attn.forward(hidden, encoder_states)
+            enc_attn = self.attn.forward(hidden, encoder_states, mask)
 
             # # 拿当前时刻的hidden开始计算attn weight
             # # 扩展hidden
@@ -274,7 +280,8 @@ class Seq2SeqOutput(object):
     def __init__(self, encoder_outputs: torch.Tensor, encoder_hidden: torch.Tensor,
                  decoded_tokens: torch.Tensor, loss: Union[torch.Tensor, float] = 0,
                  loss_value: float = 0, enc_attn_weights: torch.Tensor = None,
-                 ptr_probs: torch.Tensor = None):
+                 ptr_probs: torch.Tensor = None, input_lengths: list = None):
+        self.input_lengths = input_lengths
         self.encoder_outputs = encoder_outputs  # encoder每一个时刻的输出
         self.encoder_hidden = encoder_hidden  # encoder最后时刻的隐藏状态
         self.decoded_tokens = decoded_tokens  # (out seq len, batch size)
@@ -367,7 +374,8 @@ class Seq2Seq(nn.Module):
 
     def forward(self, input_tensor, target_tensor=None, input_lengths=None, criterion=None, *,
                 forcing_ratio=0, partial_forcing=True, ext_vocab_size=None, sample=False,
-                saved_out: Seq2SeqOutput = None, visualize: bool = None, include_cover_loss: bool = False) \
+                saved_out: Seq2SeqOutput = None, visualize: bool = None, include_cover_loss: bool = False,
+                mask=None) \
             -> Seq2SeqOutput:
         """
         :param input_tensor: tensor of word indices, (src seq len, batch size)
@@ -433,6 +441,7 @@ class Seq2Seq(nn.Module):
         if saved_out:  # reuse encoder states of a previous run
             encoder_outputs = saved_out.encoder_outputs
             encoder_hidden = saved_out.encoder_hidden
+            input_lengths = saved_out.input_lengths
             assert input_length == encoder_outputs.size(0)
             assert batch_size == encoder_outputs.size(1)
         else:  # run the encoder
@@ -462,7 +471,7 @@ class Seq2Seq(nn.Module):
 
         # initialize return values
         r = Seq2SeqOutput(encoder_outputs, encoder_hidden,
-                          torch.zeros(target_length, batch_size, dtype=torch.long))
+                          torch.zeros(target_length, batch_size, dtype=torch.long), input_lengths=input_lengths)
         if visualize:
             # target_length每一步对于input_length的权重
             r.enc_attn_weights = torch.zeros(target_length, batch_size, input_length)
@@ -506,7 +515,7 @@ class Seq2Seq(nn.Module):
                 self.decoder(decoder_embedded, decoder_hidden, encoder_outputs,
                              torch.cat(decoder_states) if decoder_states else None, coverage_vector,
                              encoder_word_idx=input_tensor, ext_vocab_size=ext_vocab_size,
-                             log_prob=log_prob)
+                             log_prob=log_prob, mask=mask)
             if self.dec_attn:
                 decoder_states.append(decoder_hidden)
 

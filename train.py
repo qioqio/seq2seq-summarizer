@@ -5,7 +5,7 @@ import os
 from torch import optim
 from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm
-from utils import Dataset, show_plot, Vocab, Batch, save_data
+from utils import Dataset, show_plot, Vocab, Batch, save_data, create_mask
 from model import Seq2Seq, DEVICE
 from params import Params
 from test import eval_batch, eval_batch_output
@@ -19,24 +19,26 @@ def train_batch(batch: Batch, model: Seq2Seq, criterion, optimizer, *,
     else:
         # use PAD
         input_lengths = batch.input_lengths
+        mask = create_mask(input_lengths)
 
     optimizer.zero_grad()
     input_tensor = batch.input_tensor.to(DEVICE)
     target_tensor = batch.target_tensor.to(DEVICE)
+    mask = mask.to(DEVICE)
     ext_vocab_size = batch.ext_vocab_size
 
     out = model(input_tensor, target_tensor, input_lengths, criterion,
                 forcing_ratio=forcing_ratio, partial_forcing=partial_forcing, sample=sample,
-                ext_vocab_size=ext_vocab_size, include_cover_loss=show_cover_loss)
+                ext_vocab_size=ext_vocab_size, include_cover_loss=show_cover_loss, mask=mask)
 
     if rl_ratio > 0:
         assert vocab is not None
         # sample
         sample_out = model(input_tensor, saved_out=out, criterion=criterion, sample=True,
-                           ext_vocab_size=ext_vocab_size)
+                           ext_vocab_size=ext_vocab_size, mask=mask)
         # greedy
         baseline_out = model(input_tensor, saved_out=out, visualize=False,
-                             ext_vocab_size=ext_vocab_size)
+                             ext_vocab_size=ext_vocab_size, mask=mask)
         scores = eval_batch_output([ex.tgt for ex in batch.examples], vocab, batch.oov_dict,
                                    sample_out.decoded_tokens, baseline_out.decoded_tokens)
         greedy_rouge = scores[1]['l_f']

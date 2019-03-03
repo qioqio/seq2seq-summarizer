@@ -544,3 +544,29 @@ def save_data(p, path):
     f.write("test_sample_ratio:" + str(p.test_sample_ratio) + "\n")
     f.write("test_save_results:" + str(p.test_save_results) + "\n")
     f.close()
+
+
+def create_mask(lengths):
+    """
+    create mask matrix
+    :param lengths: list of numbers indacating the length of every example
+    :return:
+        Example
+            create_mask([5,3,1])
+            tensor([[1., 1., 1., 1., 1.],
+                [1., 1., 1., 0., 0.],
+                [1., 0., 0., 0., 0.]])
+            torch.Size([3, 5])
+    """
+    mask = np.zeros((len(lengths), lengths[0]), dtype='int')
+    for i, length in enumerate(lengths):
+        mask[i, :length] = 1
+        # 这里得到的结果是一个矩阵，单词数目X最长的单词字符数目，从上到下按照单词长度排序
+    mask = torch.Tensor(mask)
+    return mask
+
+
+# print(create_mask([5,3,1]).size())
+
+
+

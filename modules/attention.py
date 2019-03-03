@@ -26,11 +26,12 @@ class Attention(nn.Module):
             self.bilinear = nn.Bilinear(decoder_hidden_size, encoder_hidden_size, 1)
         # elif method == "bahdanau":
 
-    def forward(self, decoder_hidden, encoder_states):
+    def forward(self, decoder_hidden, encoder_states, mask):
         """
 
-        :param decoder_hidden: decoder hidden  (1, batch size, hidden size)
-        :param encoder_states: encoder 编码状态 (src_len, batch, hidden)
+        :param decoder_hidden: decoder hidden  (1, batch size, decoder hidden size)
+        :param encoder_states: encoder hidden  (src_len, batch, encoder hidden size)
+        :param mask: mask for the source input (batch_size, src_len)
         :return:
         """
         if self.method == 'bilinear':
@@ -39,6 +40,9 @@ class Attention(nn.Module):
                                        encoder_states)  # enc_energy: (src_len, batch, 1)
         # elif self.method == 'bahdanau':
 
+        mask = mask.permute(1, 0).unsqueeze(-1)
+        # Mask out invalid positions.
+        enc_energy.data.masked_fill_(mask == 0, -float('inf'))
         enc_attn = F.softmax(enc_energy, dim=0).transpose(0, 1)  # (batch, src_len, 1)
 
         return enc_attn
