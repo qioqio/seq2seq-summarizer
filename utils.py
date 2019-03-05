@@ -484,8 +484,10 @@ def save_data(p, path):
     f.write("hidden_size:" + str(p.hidden_size) + "\n")
     f.write("dec_hidden_size:" + str(p.dec_hidden_size) + "\n")
     f.write("embed_size:" + str(p.embed_size) + "\n")
+    f.write("attn_func_name:" + str(p.attn_func_name) + "\n")
     f.write("enc_bidi:" + str(p.enc_bidi) + "\n")
     f.write("enc_attn:" + str(p.enc_attn) + "\n")
+    f.write("enc_attn_temporal" + str(p.enc_attn_temporal) + "\n")
     f.write("dec_attn:" + str(p.dec_attn) + "\n")
     f.write("pointer:" + str(p.pointer) + "\n")
     f.write("out_embed_size:" + str(p.out_embed_size) + "\n")
@@ -565,8 +567,4 @@ def create_mask(lengths):
     mask = torch.Tensor(mask)
     return mask
 
-
 # print(create_mask([5,3,1]).size())
-
-
-

@@ -2,7 +2,7 @@ import torch
 import tarfile
 from io import BytesIO
 from typing import Dict, Tuple, List, Union, Optional
-from utils import rouge, Vocab, OOVDict, Batch, format_tokens, format_rouge_scores, Dataset
+from utils import rouge, Vocab, OOVDict, Batch, format_tokens, format_rouge_scores, Dataset, create_mask
 from model import DEVICE, Seq2SeqOutput, Seq2Seq
 from params import Params
 from tqdm import tqdm
@@ -34,6 +34,8 @@ def decode_batch(batch: Batch, model: Seq2Seq, vocab: Vocab, criterion=None, *, 
         input_lengths = None
     else:
         input_lengths = batch.input_lengths
+        mask = create_mask(input_lengths)
+        mask = mask.to(DEVICE)
     with torch.no_grad():
         input_tensor = batch.input_tensor.to(DEVICE)
         if batch.target_tensor is None or criterion is None:
@@ -41,7 +43,8 @@ def decode_batch(batch: Batch, model: Seq2Seq, vocab: Vocab, criterion=None, *, 
         else:
             target_tensor = batch.target_tensor.to(DEVICE)
         out = model(input_tensor, target_tensor, input_lengths, criterion,
-                    ext_vocab_size=batch.ext_vocab_size, include_cover_loss=show_cover_loss)
+                    ext_vocab_size=batch.ext_vocab_size, include_cover_loss=show_cover_loss,
+                    mask=mask)
         decoded_batch = decode_batch_output(out.decoded_tokens, vocab, batch.oov_dict)
     target_length = batch.target_tensor.size(0)
     out.loss_value /= target_length
@@ -116,10 +119,17 @@ def eval_bs_batch(batch: Batch, model: Seq2Seq, vocab: Vocab, *, pack_seq=True, 
     assert len(batch.examples) == 1
     with torch.no_grad():
         input_tensor = batch.input_tensor.to(DEVICE)  # (src_len, 1)
+
+        if not pack_seq:
+            input_lengths = None
+        else:
+            # use PAD
+            input_lengths = batch.input_lengths
+            mask = create_mask(input_lengths)
         # 返回beam_size大小的hypo
-        hypotheses = model.beam_search(input_tensor, batch.input_lengths if pack_seq else None,
+        hypotheses = model.beam_search(input_tensor, input_lengths,
                                        batch.ext_vocab_size, beam_size, min_out_len=min_out_len,
-                                       max_out_len=max_out_len, len_in_words=len_in_words)
+                                       max_out_len=max_out_len, len_in_words=len_in_words, mask=mask)
     if best_only:
         to_decode = [hypotheses[0].tokens]
     else:

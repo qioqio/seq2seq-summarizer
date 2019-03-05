@@ -99,8 +99,12 @@ class DecoderRNN(nn.Module):
             #     print("Attention function should be tanh or bilinear!")
             #     exit(0)
 
+            # hidden_size : decoder hidden size
+            # enc_hidden_size : encoder total size
+            print("Using {} attention.".format(params.attn_func_name))
             self.attn = Attention(method=params.attn_func_name, batch_size=params.batch_size,
-                                  decoder_hidden_size=hidden_size, encoder_hidden_size=enc_hidden_size)
+                                  decoder_hidden_size=hidden_size, encoder_total_size=enc_hidden_size,
+                                  encoder_hidden_size=params.hidden_size)
 
             self.combined_size += enc_hidden_size  # decoder hidden + encoder hidden
             if enc_attn_cover:
@@ -579,7 +583,7 @@ class Seq2Seq(nn.Module):
         return r
 
     def beam_search(self, input_tensor, input_lengths=None, ext_vocab_size=None, beam_size=4, *,
-                    min_out_len=1, max_out_len=None, len_in_words=True) -> List[Hypothesis]:
+                    min_out_len=1, max_out_len=None, len_in_words=True, mask=None) -> List[Hypothesis]:
         """
         :param input_tensor: tensor of word indices, (src seq len, batch size); for now, batch size has
                              to be 1
@@ -655,7 +659,7 @@ class Seq2Seq(nn.Module):
             decoder_output, decoder_hidden, dec_enc_attn, dec_prob_ptr = \
                 self.decoder(decoder_embedded, decoder_hidden, encoder_outputs,
                              decoder_states, coverage_vector,
-                             encoder_word_idx=input_tensor, ext_vocab_size=ext_vocab_size)
+                             encoder_word_idx=input_tensor, ext_vocab_size=ext_vocab_size, mask=mask)
             # (beam size, beam size) 相当于是 (batch_size, beam size)
             # top_v : value
             # top_i : index

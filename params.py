@@ -9,9 +9,8 @@ class Params:
     vocab_size: int = 50000
     hidden_size: int = 128  # of the encoder; default decoder size is doubled if encoder is bidi
     dec_hidden_size: Optional[int] = None  # if set, a matrix will transform enc state into dec state
-    embed_size: int = 128
-    # TODO 加入
-    attn_func_name: str = "bilinear"  # attention function Bilinear or tanh
+    embed_size: int = 100
+    attn_func_name: str = "bahdanau"  # attention function bilinear or bahdanau
     enc_bidi: bool = True
     enc_attn: bool = True  # decoder has attention over encoder states?
     # TODO 加入
@@ -41,7 +40,7 @@ class Params:
     lr_decay: Optional[float] = None  # decay lr by multiplying this factor
     batch_size: int = 16
 
-    choose_model: str = 'loss'  # choose model by loss or rouge
+    choose_model: str = 'rouge'  # choose model by loss or rouge
 
     n_batches: int = 1000  # how many batches per epoch
     val_batch_size: int = 16
@@ -60,8 +59,8 @@ class Params:
     rl_start_epoch: int = 3  # start RL at which epoch (later start can ensure a strong baseline)?
 
     # Data
-    # embed_file: Optional[str] = 'data/glove.6B.100d.txt'  # use pre-trained embeddings
-    embed_file: Optional[str] = None  # use pre-trained embeddings
+    embed_file: Optional[str] = 'data/glove.6B.100d.txt'  # use pre-trained embeddings
+    # embed_file: Optional[str] = None  # use pre-trained embeddings
 
     data_path: str = 'data/cnndm.gz'
     val_data_path: Optional[str] = 'data/cnndm.val.gz'
@@ -73,7 +72,7 @@ class Params:
     truncate_tgt: bool = True  # truncate to max_tgt_len? if false, drop example if too long
 
     # Saving model automatically during training
-    model_path_prefix: Optional[str] = 'checkpoints/pointer-3/cnndm'  # 二级目录为实验目录，方便管理实验
+    model_path_prefix: Optional[str] = 'checkpoints/rouge-bahdanau/cnndm'  # 二级目录为实验目录，方便管理实验
     keep_every_epoch: bool = False  # save all epochs, or only the best and the latest one?
 
     # Testing
