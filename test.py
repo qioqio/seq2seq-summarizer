@@ -126,6 +126,7 @@ def eval_bs_batch(batch: Batch, model: Seq2Seq, vocab: Vocab, *, pack_seq=True, 
             # use PAD
             input_lengths = batch.input_lengths
             mask = create_mask(input_lengths)
+            mask = mask.to(DEVICE)
         # 返回beam_size大小的hypo
         hypotheses = model.beam_search(input_tensor, input_lengths,
                                        batch.ext_vocab_size, beam_size, min_out_len=min_out_len,
