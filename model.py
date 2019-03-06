@@ -250,7 +250,7 @@ class DecoderRNN(nn.Module):
             output = torch.zeros(batch_size, ext_vocab_size, device=DEVICE)
 
             # distribute probabilities between generator and pointer
-            prob_ptr = F.sigmoid(self.ptr(combined))  # (batch size, 1)
+            prob_ptr = torch.sigmoid(self.ptr(combined))  # (batch size, 1)
             prob_gen = 1 - prob_ptr
             # add generator probabilities to output
             gen_output = F.softmax(logits, dim=1)  # can't use log_softmax due to adding probabilities
