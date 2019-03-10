@@ -1,3 +1,5 @@
+**The original code [ymfa/seq2seq-summarizer](https://github.com/ymfa/seq2seq-summarizer)**
+
 ## Quick start
 
 #### Installation

@@ -196,7 +196,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Evaluate a summarization model.')
     # parser.add_argument('--model', type=str, metavar='M', help='path to the model to be evaluated')
-    parser.add_argument('--model', type=str, metavar='M', help='path to the model to be evaluated')
+    parser.add_argument('--model', type=str, metavar='M', default="checkpoints/rouge-bahdanau/cnndm.train.pt"
+                        , help='path to the model to be evaluated')
 
     args, unknown_args = parser.parse_known_args()
 
